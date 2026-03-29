@@ -1,0 +1,105 @@
+# Example: auto-generate a changelog from git history and save it to a file.
+#
+# Assumptions:
+#   - You are on a branch like release/v0.1.2, or you supply current_ref_override.
+#   - A previous semver tag (e.g. v0.1.1) exists in the repository.
+#   - The secrets LLM_API_ENDPOINT and LLM_API_KEY are configured in your repo/org.
+
+name: Generate Changelog
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      current_ref_override:
+        description: 'Ref to generate changelog for (e.g. release/v0.2.0 or a commit SHA)'
+        required: false
+        default: ''
+      current_version_override:
+        description: 'Explicit version string (e.g. v0.2.0). Required when current_ref is not release/<version>.'
+        required: false
+        default: ''
+      previous_tag_override:
+        description: 'Explicit previous semver tag. Overrides automatic lookup.'
+        required: false
+        default: ''
+
+jobs:
+  changelog:
+    name: Generate changelog
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout with full history and tags
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch remote branches and tags explicitly
+        run: |
+          set -euo pipefail
+          git fetch --force --prune --tags origin
+          git fetch --force --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Generate changelog
+        id: changelog
+        uses: your-org/auto-llm-changelog@v1
+        with:
+          api_endpoint: ${{ secrets.LLM_API_ENDPOINT }}
+          api_key: ${{ secrets.LLM_API_KEY }}
+          model: 'gpt-4o'
+          current_ref_override: ${{ inputs.current_ref_override }}
+          current_version_override: ${{ inputs.current_version_override }}
+          previous_tag_override: ${{ inputs.previous_tag_override }}
+          temperature: '0.2'
+          max_diff_bytes: '200000'
+          include_commit_patches: 'false'
+          debug: 'false'
+
+      - name: Write changelog to file
+        env:
+          CHANGELOG_MARKDOWN: ${{ steps.changelog.outputs.markdown }}
+          VERSION: ${{ steps.changelog.outputs.version }}
+          RANGE: ${{ steps.changelog.outputs.compare_range }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VERSION" ]]; then
+            VERSION="${RANGE//[.\/]/-}"
+          fi
+
+          mkdir -p .github/changelog
+          OUTFILE=".github/changelog/${VERSION}.md"
+          printf '%s\n' "$CHANGELOG_MARKDOWN" > "$OUTFILE"
+          echo "Wrote changelog to $OUTFILE"
+          cat "$OUTFILE"
+
+      - name: Commit and push changelog
+        env:
+          VERSION: ${{ steps.changelog.outputs.version }}
+          RANGE: ${{ steps.changelog.outputs.compare_range }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VERSION" ]]; then
+            VERSION="${RANGE//[.\/]/-}"
+          fi
+
+          OUTFILE=".github/changelog/${VERSION}.md"
+
+          git config --local user.name  'github-actions[bot]'
+          git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+
+          git add "$OUTFILE"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: add changelog for ${VERSION} [skip ci]"
+          git push

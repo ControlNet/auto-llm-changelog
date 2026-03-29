@@ -1,0 +1,92 @@
+name: auto-llm-changelog
+description: Generate a Markdown changelog from git history and diff using an OpenAI-compatible Chat Completions API.
+author: Anthropic Claude Code
+
+inputs:
+  api_endpoint:
+    description: OpenAI-compatible Chat Completions endpoint URL.
+    required: true
+  api_key:
+    description: API key used as Bearer token.
+    required: true
+  model:
+    description: Model name passed to the Chat Completions API.
+    required: true
+  current_ref_override:
+    description: Explicit ref to use as current_ref.
+    required: false
+    default: ""
+  current_version_override:
+    description: Explicit version to use as current_version.
+    required: false
+    default: ""
+  previous_tag_override:
+    description: Explicit previous semver tag to use.
+    required: false
+    default: ""
+  temperature:
+    description: Sampling temperature sent to the API.
+    required: false
+    default: "0.2"
+  max_diff_bytes:
+    description: Maximum bytes for the aggregate diff section included in the prompt.
+    required: false
+    default: "200000"
+  system_prompt:
+    description: Override the default system prompt.
+    required: false
+    default: ""
+  fetch_remote_refs:
+    description: Whether to fetch tags and remote refs before resolving ranges.
+    required: false
+    default: "true"
+  include_commit_patches:
+    description: Whether to include per-commit patches in the prompt, subject to size limits.
+    required: false
+    default: "false"
+  debug:
+    description: Enable verbose debug logging.
+    required: false
+    default: "false"
+  max_prompt_bytes:
+    description: Soft cap for the assembled user prompt body in bytes before optional sections are trimmed.
+    required: false
+    default: "300000"
+
+outputs:
+  markdown:
+    description: Generated Markdown changelog.
+    value: ${{ steps.generate.outputs.markdown }}
+  current_ref:
+    description: Resolved current_ref used for git comparison.
+    value: ${{ steps.generate.outputs.current_ref }}
+  version:
+    description: Resolved current_version, or empty string when unavailable.
+    value: ${{ steps.generate.outputs.version }}
+  previous_tag:
+    description: Resolved previous semver tag.
+    value: ${{ steps.generate.outputs.previous_tag }}
+  compare_range:
+    description: Git compare range in previous_tag..current_ref form.
+    value: ${{ steps.generate.outputs.compare_range }}
+
+runs:
+  using: composite
+  steps:
+    - id: generate
+      shell: bash
+      env:
+        INPUT_API_ENDPOINT: ${{ inputs.api_endpoint }}
+        INPUT_API_KEY: ${{ inputs.api_key }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_CURRENT_REF_OVERRIDE: ${{ inputs.current_ref_override }}
+        INPUT_CURRENT_VERSION_OVERRIDE: ${{ inputs.current_version_override }}
+        INPUT_PREVIOUS_TAG_OVERRIDE: ${{ inputs.previous_tag_override }}
+        INPUT_TEMPERATURE: ${{ inputs.temperature }}
+        INPUT_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
+        INPUT_FETCH_REMOTE_REFS: ${{ inputs.fetch_remote_refs }}
+        INPUT_INCLUDE_COMMIT_PATCHES: ${{ inputs.include_commit_patches }}
+        INPUT_DEBUG: ${{ inputs.debug }}
+        INPUT_MAX_PROMPT_BYTES: ${{ inputs.max_prompt_bytes }}
+      run: "$GITHUB_ACTION_PATH/scripts/main.sh"
