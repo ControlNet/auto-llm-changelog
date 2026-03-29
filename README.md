@@ -344,7 +344,7 @@ jobs:
 
       - name: Generate changelog markdown
         id: changelog
-        uses: your-org/auto-llm-changelog@v1
+        uses: ControlNet/auto-llm-changelog@v1
         with:
           api_endpoint: ${{ secrets.LLM_API_ENDPOINT }}
           api_key: ${{ secrets.LLM_API_KEY }}
@@ -387,7 +387,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: your-org/auto-llm-changelog@v1
+        uses: ControlNet/auto-llm-changelog@v1
         with:
           api_endpoint: ${{ secrets.LLM_API_ENDPOINT }}
           api_key: ${{ secrets.LLM_API_KEY }}
